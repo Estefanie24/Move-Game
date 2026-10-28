@@ -25,16 +25,23 @@
 <script type="module">
 import {HandLandmarker,FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 const $=id=>document.getElementById(id);const video=$("video"),canvas=$("canvas"),ctx=canvas.getContext("2d");
-let landmarker=null,stream=null,active=false,mode="",score=0,time=60,streak=0,timer=null,lastT=-1,prevPose="",poseStart=0,lastAction=0,round=0,balls=[],targetX=.5,sortBallX=.5,sortBallY=.5,sortBallVX=.22,sortBallVY=.17,duelCountdown=0,duelResult=false,duelResultAt=0,sortHoldStart=0,sortHoldKey="",playerScores=[0,0],grabbed=false,grabX=.5,grabY=.5,repPose="",repSince=0,repCount=0,foodFactIndex=0,p1HoldStart=0,p2HoldStart=0,p1HoldId=-1,p2HoldId=-1,duelCombo="",duelStableSince=0,duelLastSeen=0,lastFrameAt=0,gameEnded=false,miniBest=0;
+let landmarker=null,stream=null,active=false,mode="",score=0,time=60,streak=0,timer=null,lastT=-1,prevPose="",poseStart=0,lastAction=0,round=0,balls=[],targetX=.5,sortBallX=.5,sortBallY=.5,sortBallVX=.22,sortBallVY=.17,duelCountdown=0,duelResult=false,duelResultAt=0,sortHoldStart=0,sortHoldKey="",playerScores=[0,0],grabbed=false,grabX=.5,grabY=.5,repPose="",repSince=0,repCount=0,foodFactIndex=0,p1HoldStart=0,p2HoldStart=0,p1HoldId=-1,p2HoldId=-1,duelCombo="",duelStableSince=0,duelLastSeen=0,duelCand='',duelCandSince=0,grabLastSeen=0,sbx=.5,sby=.5,sortType='A',sortEmoji='🔴',sortZone='',sortZoneSince=0,lastFrameAt=0,gameEnded=false,miniBest=0;
 const poses={open:"🖐️ OPEN PALM",pinch:"🤏 PINCH",fist:"✊ FIST",peace:"✌️ PEACE SIGN",rock:"✊ ROCK",paper:"🖐️ PAPER",scissors:"✌️ SCISSORS",ok:"👌 OK SIGN",thumb:"👍 THUMBS UP",horns:"🤘 HORNS"};
 function classify(l){
  if(!l||l.length<21)return "NO HAND";
- const wrist=l[0];
- // Compare fingertip-to-wrist distance with the corresponding PIP joint.
- // A modest threshold is more tolerant of camera angle and hand size than 1.12.
- const extended=(tip,pip)=>Math.hypot(l[tip].x-wrist.x,l[tip].y-wrist.y)>
-   Math.hypot(l[pip].x-wrist.x,l[pip].y-wrist.y)*1.045;
- const index=extended(8,6),middle=extended(12,10),ring=extended(16,14),pinky=extended(20,18);
+ const ar=(video.videoWidth||4)/(video.videoHeight||3);
+ const P=i=>({x:l[i].x*ar,y:l[i].y,z:(l[i].z||0)*ar});
+ const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}),len=v=>Math.hypot(v.x,v.y,v.z),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
+ const wrist=P(0);
+ // A finger counts as extended if its tip is clearly farther from the wrist than its middle joint,
+ // OR if the finger is straight in 3D (handles a hand tilted toward the camera).
+ const extended=(mcp,pip,dip,tip)=>{
+   const a=sub(P(pip),P(mcp)),b=sub(P(dip),P(pip));
+   const straight=dot(a,b)/(len(a)*len(b)+1e-6)>.72;
+   const farther=len(sub(P(tip),wrist))>len(sub(P(pip),wrist))*1.045;
+   return farther||straight;
+ };
+ const index=extended(5,6,7,8),middle=extended(9,10,11,12),ring=extended(13,14,15,16),pinky=extended(17,18,19,20);
  const thumbOut=Math.hypot(l[4].x-l[2].x,l[4].y-l[2].y)>.085;
  if(index&&middle&&!ring&&!pinky)return "PEACE";
  if(index&&middle&&ring&&pinky)return "OPEN PALM";
@@ -133,10 +140,13 @@ function drawGameOverlay(){
  if(['sort','healthy','twosort'].includes(mode)){
   const left=mode==='twosort'?'PLAYER 1':mode==='healthy'?'🥗 NOURISH':'🔴 RED';const right=mode==='twosort'?'PLAYER 2':mode==='healthy'?'🍪 TREAT':'🔵 BLUE';
   target(.18,.22,left,mode==='healthy'?'#7cff9a':'#ff555f');target(.82,.76,right,mode==='healthy'?'#d58aff':'#5b9cff');
-  const elapsed=Math.max(0,60-time),speed=1+Math.min(2.2,elapsed*.035),t=performance.now()/1000*speed;
-  const bx=.5+Math.sin(t*1.15)*.20,by=.49+Math.cos(t*.9)*.16;
-  label(mode==='healthy'?'🍎':'🔴',bx*w,by*h,mode==='healthy'?'#a5ffae':'#ff7474');
-  label(mode==='healthy'?'🍪':'🔵',(.98-bx)*w,(1.02-by)*h,mode==='healthy'?'#e6b4ff':'#76baff');
+  if(mode==='twosort'){
+   const elapsed=Math.max(0,60-time),speed=1+Math.min(2.2,elapsed*.035),t=performance.now()/1000*speed;
+   const bx=.5+Math.sin(t*1.15)*.20,by=.49+Math.cos(t*.9)*.16;
+   label('🔴',bx*w,by*h,'#ff7474');label('🔵',(.98-bx)*w,(1.02-by)*h,'#76baff');
+  }else{
+   ctx.save();ctx.font=`${Math.max(34,w*.08)}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='#fff';ctx.shadowBlur=18;ctx.fillText(sortEmoji,sbx*w,sby*h);ctx.restore();
+  }
  } else if(mode==='grab'){
   target(.18,.22,'💎 DROP','#78f5ff');target(.82,.78,'🌙 DROP','#c5a2ff');
   label('🤏',grabX*w,grabY*h,'#fff7a5');
@@ -152,7 +162,7 @@ function paintBoard(){
   const two=mode==="twosort",healthy=mode==="healthy";
   const leftLabel=two?"PLAYER 1":healthy?"🥗 NOURISH":"🔴 RED";
   const rightLabel=two?"PLAYER 2":healthy?"🍪 TREAT":"🔵 BLUE";
-  $("boardContent").innerHTML=`<div class="arena" id="arena" style="height:290px"><div class="sortbox r" style="left:8px;right:auto;width:100px;height:65px">${leftLabel}</div><div class="sortbox b" style="right:8px;width:100px;height:65px">${rightLabel}</div><div class="ball red" id="redball" style="top:45%;left:35%">${healthy?'🍎':'🔴'}</div><div class="ball blue" id="blueball" style="top:65%;left:55%">${healthy?'🍪':'🔵'}</div>${two?'<div style="position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #fff7"></div>':''}</div><p class="hint">${two?'Keep both hands visible in the camera. Move the hand on the LEFT side of the camera view into the PLAYER 1 target (upper-left); move the other hand into PLAYER 2 (lower-right). Hold briefly to score.':healthy?'Move your index fingertip into the GREEN NOURISH target (upper-left) for fruit/vegetables, or the PURPLE TREAT target (lower-right) for sweets. Keep it there briefly to score and see a nutrition note.':'Move your index fingertip into the RED target in the upper-left or BLUE target in the lower-right of the camera image. Hold your fingertip inside a target briefly to score.'}</p>${healthy?'<p id="nutritionFact" class="hint" style="border:1px solid #8be0a4;border-radius:10px;padding:12px;background:#12301f">🥬 Nutrition fact will appear here after your first sort.</p>':''}${two?'<div class="scoreline"><span class="pill">Player 1: <b id="p1score">0</b></span><span class="pill">Player 2: <b id="p2score">0</b></span></div>':''}`;
+  $("boardContent").innerHTML=`<div class="arena" id="arena" style="height:290px"><div class="sortbox r" style="left:8px;right:auto;width:100px;height:65px">${leftLabel}</div><div class="sortbox b" style="right:8px;width:100px;height:65px">${rightLabel}</div>${two?'<div class="ball red" id="redball" style="top:45%;left:35%">🔴</div><div class="ball blue" id="blueball" style="top:65%;left:55%">🔵</div>':'<div id="sortBall" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:60px;height:60px;display:grid;place-items:center;font-size:40px;filter:drop-shadow(0 0 12px #fff);pointer-events:none;z-index:3;transition:left .06s linear,top .06s linear">'+sortEmoji+'</div>'}${two?'<div style="position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #fff7"></div>':''}</div><p class="hint">${two?'Keep both hands visible in the camera. Move the hand on the LEFT side of the camera view into the PLAYER 1 target (upper-left); move the other hand into PLAYER 2 (lower-right). Hold briefly to score.':healthy?'The food follows your index fingertip. Carry fruit, vegetables and other nourishing foods into the GREEN NOURISH target (upper-left) and sweets into the PURPLE TREAT target (lower-right). Hold it there briefly to score.':'The ball follows your index fingertip. Carry the 🔴 red ball into the RED target (upper-left) and the 🔵 blue ball into the BLUE target (lower-right). Hold it there briefly to score.'}</p>${healthy?'<p id="nutritionFact" class="hint" style="border:1px solid #8be0a4;border-radius:10px;padding:12px;background:#12301f">🥬 Nutrition fact will appear here after your first sort.</p>':''}${two?'<div class="scoreline"><span class="pill">Player 1: <b id="p1score">0</b></span><span class="pill">Player 2: <b id="p2score">0</b></span></div>':''}`;
  }else if(mode==="duel"){$("boardContent").innerHTML=`<div class="biggest" id="duelEmojis">✊　✌️</div><div class="arenaGesture"><div class="choice"><div class="e">✊</div>Rock</div><div class="choice"><div class="e">🖐️</div>Paper</div><div class="choice"><div class="e">✌️</div>Scissors</div></div><p class="hint">Show two valid signs. The game compares the signs after a countdown.</p>`}
  else if(mode==="grab"){$("boardContent").innerHTML=`<div class="arena" id="grabArena" style="height:300px"><div class="sortbox r" style="left:8px;right:auto;width:105px">💎 DROP</div><div class="sortbox b" style="right:8px;width:105px">🌙 DROP</div><div id="grabOrb" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:34px;background:radial-gradient(circle,#fff,#8efcff 35%,#4a50d9 72%,transparent);box-shadow:0 0 28px #55f6ff">🔮</div><div id="grabCursor" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border:2px solid #fff7a5;border-radius:50%;box-shadow:0 0 15px #fff7a5;pointer-events:none"></div></div><p class="hint">Use the game arena on the left. Pinch when the hand cursor reaches the central orb, move it into either glowing target, then release to score.</p><p id="grabStatus" class="hint">Orb waiting to be grabbed.</p>`}
  else{$("boardContent").innerHTML=`<div class="spellStage"><div class="biggest" id="targetEmoji">🖐️</div><div style="text-align:center;font-size:22px;color:#fff0b8;text-shadow:0 2px 8px #07101f" id="targetName">OPEN PALM</div><p class="hint" style="text-align:center;color:#f0f4ff;text-shadow:0 1px 5px #06101e">Copy the target gesture and hold it for 1 second.</p></div>`}
@@ -160,8 +170,8 @@ function paintBoard(){
 function updateLiveGuide(){
  const el=$("liveInstruction");if(!el)return;
  const cfg={
-  sort:{icon:"☝️",title:"BALL SORTER · POINT",text:"Use the camera view: move your index fingertip into the RED upper-left or BLUE lower-right target and hold briefly.",steps:[["☝️","Point"],["🔴","Red"],["🔵","Blue"]],active:0},
-  healthy:{icon:"🥗",title:"HEALTHY SORTER · POINT",text:"Move your index fingertip into GREEN NOURISH upper-left for fruit/vegetables or PURPLE TREAT lower-right for sweets.",steps:[["☝️","Point"],["🥦","Nourish"],["🍪","Treat"]],active:0},
+  sort:{icon:"☝️",title:"BALL SORTER · POINT",text:"Move your index fingertip: the ball follows it. Carry the red ball to the RED upper-left target and the blue ball to the BLUE lower-right target, then hold briefly.",steps:[["☝️","Point"],["🔴","Red"],["🔵","Blue"]],active:0},
+  healthy:{icon:"🥗",title:"HEALTHY SORTER · POINT",text:"Your fingertip carries the food. Take fruit/vegetables to GREEN NOURISH (upper-left) and sweets to PURPLE TREAT (lower-right), then hold briefly.",steps:[["☝️","Point"],["🥦","Nourish"],["🍪","Treat"]],active:0},
   twosort:{icon:"👐",title:"TWO-PLAYER SORTER",text:"Keep both hands visible. Hand on the left side of the camera aims for PLAYER 1 upper-left; the other hand aims for PLAYER 2 lower-right.",steps:[["👐","Both hands"],["🔴","Player 1"],["🔵","Player 2"]],active:0},
   duel:{icon:"✊",title:"TWO-HAND DUEL",text:"Show a rock, paper, or scissors sign with each hand. Hold both signs through the countdown.",steps:[["✊","Rock"],["🖐️","Paper"],["✌️","Scissors"]],active:0},
   grab:{icon:"🤏",title:"GRAB & DROP · PINCH",text:"Watch the hand cursor in the game arena: place it over the central orb, pinch thumb and index finger to grab, keep pinching while moving into a corner target, then spread your fingers to release.",steps:[["🤏","Pinch"],["🔮","Grab"],["🎯","Move"],["🖐️","Release"]],active:0},
@@ -175,15 +185,21 @@ function openPotion(){location.href="potion-lab.html"}
 function goHome(){stop();$("play").classList.remove("active");$("home").classList.remove("hidden")}
 function resetMini(){stop();startMini(mode)}
 function stop(){active=false;if(timer){clearInterval(timer);timer=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if(video.srcObject)video.srcObject=null;$("detected").textContent="Camera is off."}
+function nextSortRound(){
+ sortType=Math.random()<.5?'A':'B';
+ if(mode==='healthy'){
+  const good=["🍎","🥦","🥕","🍊","🥜","🥣","🍌","🥬"],bad=["🍪","🍰","🍬","🍟","🧁","🍩"];
+  sortEmoji=sortType==='A'?good[Math.floor(Math.random()*good.length)]:bad[Math.floor(Math.random()*bad.length)];
+ }else sortEmoji=sortType==='A'?'🔴':'🔵';
+ sbx=.5;sby=.5;sortZone='';sortZoneSince=0;
+ const el=$("sortBall");if(el){el.textContent=sortEmoji;el.style.left="50%";el.style.top="50%"}
+}
 function moveBalls(){
+ if(mode!=="twosort"){nextSortRound();return}
  const r=$("redball"),b=$("blueball");if(!r||!b)return;
  const elapsed=Math.max(0,60-time),duration=Math.max(0.85,3.2-elapsed*.035);r.style.setProperty("--orb-speed",duration+"s");b.style.setProperty("--orb-speed",duration+"s");
  r.style.top=(30+Math.random()*28)+"%";r.style.left=(25+Math.random()*25)+"%";
  b.style.top=(48+Math.random()*25)+"%";b.style.left=(52+Math.random()*23)+"%";
- if(mode==="healthy"){
-  r.textContent=["🍎","🥦","🥕","🍊","🥜","🥣"][Math.floor(Math.random()*6)];
-  b.textContent=["🍪","🍰","🍬","🍟","🧁"][Math.floor(Math.random()*5)];
- }
 }
 async function startTracking(){if(active||$("camStart").disabled)return;if(gameEnded||time<=0)startMini(mode);try{$("camStart").disabled=true;$("camStart").textContent="Loading hand tracking…";if(!landmarker){const vision=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");const mk=d=>HandLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",delegate:d},runningMode:"VIDEO",numHands:2,minHandDetectionConfidence:.5,minHandPresenceConfidence:.5,minTrackingConfidence:.5});try{landmarker=await mk("GPU")}catch(gpuErr){console.warn("GPU delegate failed, using CPU",gpuErr);landmarker=await mk("CPU")}}stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:640},height:{ideal:480}},audio:false});video.srcObject=stream;await video.play();active=true;lastT=-1;poseStart=performance.now();lastAction=0;$("camStart").textContent="Camera Active";$("miniMsg").textContent="Magic is live — follow the challenge.";timer=setInterval(()=>{if(!active)return;time--;$("miniTime").textContent=time;if(time<=0){active=false;gameEnded=true;clearInterval(timer);timer=null;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if(video.srcObject)video.srcObject=null;$("detected").textContent="Round complete.";$("miniMsg").textContent=`Time's up! Final score: ${score}. Restart to try again.`;$("camStart").disabled=false;$("camStart").textContent="Play Again"}},1000);requestAnimationFrame(loop)}catch(e){console.error(e);active=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if(video.srcObject)video.srcObject=null;$("camStart").disabled=false;$("camStart").textContent="Try Camera Again";$("miniMsg").textContent="Camera or hand tracking could not start. Open the game over HTTPS, allow camera access, and check your internet connection. If it still fails, try refreshing the page."}}
 function award(points,msg){score+=points;streak++;if(score>miniBest){miniBest=score;try{localStorage.setItem("arcane-best-"+mode,String(miniBest))}catch(e){}}$("miniBest").textContent=miniBest;$("miniScore").textContent=score;$("miniStreak").textContent=streak;$("miniMsg").textContent=msg;lastAction=performance.now();poseStart=lastAction;if(["sort","healthy","twosort"].includes(mode))moveBalls()}
@@ -197,24 +213,31 @@ function loop(){
   const all=res.landmarks||[];draw(all);drawGameOverlay();const gs=all.map(classify);
   const shown=gs.find(g=>["FIST","OPEN PALM","PEACE","THUMBS UP"].includes(g))||"NO HAND";
   $("gestureLabel").textContent=shown;$("gestureLabel").classList.toggle("nohand",shown==="NO HAND");
-  $("detected").textContent=all.length?`Detected: ${gs.join(" · ")}`:"No hand detected — bring a hand into view.";
+  $("detected").textContent=all.length?(mode==="duel"&&all.length>1?`Detected: left ${all.map((lm,i)=>({g:gs[i],sx:1-lm[0].x})).sort((p,q)=>p.sx-q.sx).map(p=>p.g).join(" · right ")}`:`Detected: ${gs.join(" · ")}`):"No hand detected — bring a hand into view.";
   const now=performance.now();
-  // Sorters: require a stable fingertip dwell inside a camera-overlay target.
-  if(["sort","healthy"].includes(mode)&&all.length&&now-lastAction>900){
-   // Screen-space position (x=0 is the left edge of the mirrored view the player sees).
-   const pts=all.map(h=>({x:1-h[8].x,y:h[8].y}));
-   const inLeft=pts.some(p=>p.x<.38&&p.y<.42);   // upper-left target
-   const inRight=pts.some(p=>p.x>.62&&p.y>.58);  // lower-right target
-   const key=inLeft?"left":inRight?"right":"";
-   if(key){if(sortHoldKey!==key){sortHoldKey=key;sortHoldStart=now;}
-    if(now-sortHoldStart>=450){sortHoldKey="";sortHoldStart=0;
+  // Sorters: the ball follows the index fingertip; carry it into the matching target and hold briefly.
+  if(["sort","healthy"].includes(mode)){
+   if(all.length){
+    const tip=all[0][8],tx=1-tip.x,ty=tip.y; // screen-space (mirrored) position
+    sbx+=(tx-sbx)*.6;sby+=(ty-sby)*.6;
+   }
+   const el=$("sortBall");if(el){el.style.left=(sbx*100)+"%";el.style.top=(sby*100)+"%"}
+   const zone=sbx<.36&&sby<.42?"left":(sbx>.64&&sby>.58?"right":"");
+   if(zone&&all.length&&now-lastAction>800){
+    if(sortZone!==zone){sortZone=zone;sortZoneSince=now}
+    if(now-sortZoneSince>=350){
+     sortZone="";sortZoneSince=0;
+     const correct=(zone==="left")===(sortType==="A");
      if(mode==="healthy"){
       const facts=["Fruit and vegetables provide vitamins, minerals, and fiber.","Whole grains often provide more fiber than refined grains.","Beans and lentils can provide both protein and fiber.","Water is a useful everyday drink for hydration.","A varied diet helps provide a range of nutrients."];
-      if(key==="left"){$("nutritionFact").textContent="🥗 Nutrition fact: "+facts[foodFactIndex++%facts.length];award(10,"Nourishing target selected! +10 points.");}
-      else {$("nutritionFact").textContent="🍪 Nutrition note: treats can fit into an overall varied eating pattern; portion and frequency matter.";award(5,"Treat target selected. +5 points.");}
-     }else award(10,key==="left"?"Red target reached! +10 points.":"Blue target reached! +10 points.");
+      if(correct){$("nutritionFact").textContent=sortType==="A"?"🥗 Nutrition fact: "+facts[foodFactIndex++%facts.length]:"🍪 Nutrition note: treats can fit into an overall varied eating pattern; portion and frequency matter.";award(10,sortType==="A"?"Nourishing food sorted! +10 points.":"Treat sorted correctly! +10 points.");}
+      else{streak=0;$("miniStreak").textContent=0;$("miniMsg").textContent=sortType==="A"?"That food is nourishing — try the GREEN NOURISH target.":"That is a treat — try the PURPLE TREAT target.";lastAction=now;sbx=.5;sby=.5}
+     }else{
+      if(correct)award(10,sortType==="A"?"Red ball in the red target! +10 points.":"Blue ball in the blue target! +10 points.");
+      else{streak=0;$("miniStreak").textContent=0;$("miniMsg").textContent=sortType==="A"?"Wrong target — the 🔴 red ball goes in the RED target (upper-left).":"Wrong target — the 🔵 blue ball goes in the BLUE target (lower-right).";lastAction=now;sbx=.5;sby=.5}
+     }
     }
-   }else{sortHoldKey="";sortHoldStart=0;}
+   }else if(!zone){sortZone="";sortZoneSince=0}
   }
   if(mode==="twosort"&&all.length>=2&&now-lastAction>900){
    const hands=all.map((lm,i)=>({tip:lm[8],i,x:1-lm[8].x,y:lm[8].y}));
@@ -231,24 +254,27 @@ function loop(){
   }else if(mode==="twosort"&&all.length<2){p1HoldStart=0;p2HoldStart=0;p1HoldId=-1;p2HoldId=-1;}
   // Grab & Drop: coordinate math is always in pixels, including after the orb moves.
   if(mode==="grab"&&all[0]){
-   const h=all[0],thumb=h[4],index=h[8],handSize=Math.max(.05,Math.hypot(h[0].x-h[9].x,h[0].y-h[9].y)),d=Math.hypot(thumb.x-index.x,thumb.y-index.y)/handSize,pinch=grabbed?d<.62:d<.42,mx=(thumb.x+index.x)/2,my=(thumb.y+index.y)/2;grabX=1-mx;grabY=my;
+   const h=all[0],thumb=h[4],index=h[8],handSize=Math.max(.05,Math.hypot(h[0].x-h[9].x,h[0].y-h[9].y)),d=Math.hypot(thumb.x-index.x,thumb.y-index.y)/handSize,pinch=grabbed?d<.7:d<.55,mx=(thumb.x+index.x)/2,my=(thumb.y+index.y)/2;grabX=1-mx;grabY=my;
    const orb=$("grabOrb"),cursor=$("grabCursor"),arena=$("grabArena");
    if(arena&&orb&&cursor){
     const rect=arena.getBoundingClientRect(),x=(1-mx)*rect.width,y=my*rect.height;
-    cursor.style.left=x+"px";cursor.style.top=y+"px";cursor.style.transform="translate(-50%,-50%)";
+    grabLastSeen=now;cursor.style.left=x+"px";cursor.style.top=y+"px";cursor.style.transform="translate(-50%,-50%)";cursor.style.background=pinch?"#fff7a5":"transparent";if(!grabbed&&now-lastAction>1500)$("grabStatus").textContent=(pinch?"Pinching — ":"Open — ")+(Math.hypot(x-(String(orb.style.left).includes('%')?parseFloat(orb.style.left||'50')/100*rect.width:parseFloat(orb.style.left)),y-(String(orb.style.top).includes('%')?parseFloat(orb.style.top||'50')/100*rect.height:parseFloat(orb.style.top)))<120?"cursor is on the orb: pinch to grab.":"move the yellow cursor onto the orb, then pinch.");
     const ox=parseFloat(orb.style.left||"50%");
     const oy=parseFloat(orb.style.top||"50%");
     const orbX=String(orb.style.left).includes("%")?ox/100*rect.width:ox;
     const orbY=String(orb.style.top).includes("%")?oy/100*rect.height:oy;
-    if(pinch&&!grabbed&&Math.hypot(x-orbX,y-orbY)<90){grabbed=true;$("grabStatus").textContent="Orb grabbed! Move it into a target and release.";}
+    if(pinch&&!grabbed&&Math.hypot(x-orbX,y-orbY)<120){grabbed=true;$("grabStatus").textContent="Orb grabbed! Move it into a target and release.";}
     if(grabbed&&pinch){orb.style.left=x+"px";orb.style.top=y+"px";orb.style.transform="translate(-50%,-50%)";orb.style.boxShadow="0 0 36px #fff7a5";}
     if(grabbed&&!pinch){
      const inLeft=x<rect.width*.36&&y<rect.height*.43,inRight=x>rect.width*.64&&y>rect.height*.57;
      if(inLeft||inRight){award(10,inLeft?"Orb delivered to the crystal target! +10.":"Orb delivered to the moon target! +10.");$("grabStatus").textContent="Success! Pinch the orb again for another delivery.";}
-     else{$("miniMsg").textContent="Release inside the upper-left crystal or lower-right moon target to score. Try again.";$("grabStatus").textContent="Missed the target — pinch the orb to try again.";}
+     else{$("miniMsg").textContent="Release inside the upper-left crystal or lower-right moon target to score. Try again.";$("grabStatus").textContent="Missed the target — pinch the orb to try again.";lastAction=now;}
      grabbed=false;orb.style.left="50%";orb.style.top="50%";orb.style.transform="translate(-50%,-50%)";orb.style.boxShadow="0 0 28px #55f6ff";
     }
    }
+  }
+  if(mode==="grab"&&!all.length&&grabbed&&now-grabLastSeen>700){
+   grabbed=false;const o=$("grabOrb");if(o){o.style.left="50%";o.style.top="50%";o.style.boxShadow="0 0 28px #55f6ff"}$("grabStatus").textContent="Hand lost — the orb returned to the centre.";
   }
   // Two-Hand Duel: hold both valid signs through a stable 3-second countdown.
   if(mode==="duel"&&now-lastAction>1200){
@@ -267,7 +293,12 @@ function loop(){
     }
     else {
      duelLastSeen=now;
-     if(!duelCountdown||duelCombo!==combo){duelCountdown=now;duelCombo=combo;$('duelEmojis').textContent='3';}
+     if(duelCombo!==combo){
+      // Only restart the countdown if a different pair stays steady for 300 ms (ignores single bad frames).
+      if(duelCand!==combo){duelCand=combo;duelCandSince=now}
+      if(!duelCountdown||now-duelCandSince>=300){duelCountdown=now;duelCombo=combo;$('duelEmojis').textContent='3';}
+     }else duelCand=combo;
+     if(!duelCountdown)return requestAnimationFrame(loop);
      const elapsed=now-duelCountdown;
      if(elapsed<1000)$('duelEmojis').textContent='3';else if(elapsed<2000)$('duelEmojis').textContent='2';else if(elapsed<3000)$('duelEmojis').textContent='1';
      else {

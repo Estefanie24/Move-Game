@@ -33,3 +33,8 @@ REVISION 3 (gesture games fix)
 - Two-Hand Duel: hands ordered left/right by screen position, rock with side thumb accepted, brief flicker no longer restarts the countdown.
 - Camera overlay text no longer mirrored; GPU->CPU fallback for hand tracking; Play Again now resets the round.
 - Images enhanced (2x resolution, denoised, sharpened).
+
+REVISION 4
+- Ball Sorter / Healthy Sorter: the ball (or food) now FOLLOWS your index fingertip in both the arena and the camera view. Carry it to the matching target (red ball -> RED upper-left, blue ball -> BLUE lower-right; nourishing food -> NOURISH, treats -> TREAT). Wrong target = no points and the streak resets.
+- Grab & Drop: easier pinch, bigger grab radius, live status ("Open / Pinching - cursor is on the orb"), orb returns to centre if the hand is lost.
+- Two-Hand Duel: more robust finger detection, debounced countdown, live readout "Detected: left X . right Y".
