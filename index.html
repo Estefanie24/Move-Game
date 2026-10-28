@@ -19,8 +19,7 @@
 <article class="card"><img class="card-art" src="rogue-alchemist-turnaround.jpg" alt="Provided rogue alchemist character turnaround sheet"><div class="emoji">👐 🔴 🔵</div><h2>Two-Player Sorter</h2><p>Two players share the camera. Hold each fingertip inside its assigned glowing target to earn separate points.</p><div class="skill">Hand skill: two-hand tracking · coordination</div><button onclick="startMini('twosort')">Play Together</button></article>
 
 <article class="card"><img class="card-art" src="rogue-alchemist-portrait.jpg" alt="Provided rogue alchemist holding magical energy"><div class="emoji">🤏 ✨ 🎯</div><h2>Grab & Drop</h2><p>Use the hand cursor in the game arena: pinch the orb, drag it to a glowing corner target, and release.</p><div class="skill">Hand skill: pinch detection · controlled movement</div><button onclick="startMini('grab')">Grab a Spell Orb</button></article>
-</div></section>
-<section id="play"><div class="playhead"><button class="btn" onclick="goHome()">← Game Library</button><div class="pill" id="modeTag">Hand Magic</div><button class="btn" onclick="resetMini()">Restart</button></div>
+</div><section id="play"><div class="playhead"><button class="btn" onclick="goHome()">← Game Library</button><div class="pill" id="modeTag">Hand Magic</div><button class="btn" onclick="resetMini()">Restart</button></div>
 <div class="gameLayout"><div class="board"><h2 id="gameTitle">Spell Challenge</h2><div id="boardContent"></div><div class="scoreline"><span class="pill">Score: <b id="miniScore">0</b></span><span class="pill">Time: <b id="miniTime">60</b>s</span><span class="pill">Streak: <b id="miniStreak">0</b></span><span class="pill">Best: <b id="miniBest">0</b></span></div><p class="msg" id="miniMsg">Press Start Camera to begin.</p><button class="btn" id="camStart" onclick="startTracking()">Start Camera & Play</button></div>
 <div class="cameraPanel"><h2>🔮 Hand Portal</h2><div id="liveInstruction" class="liveInstruction"><div class="guideTop"><div class="guideIcon">🖐️</div><div><div class="guideTitle">LIVE GAME GUIDE</div><div class="guideText">Choose a game to see its gesture here.</div></div></div><div class="guideSteps"><div class="guideStep active"><b>🖐️</b>Open</div><div class="guideStep"><b>🤏</b>Pinch</div><div class="guideStep"><b>✊</b>Fist</div><div class="guideStep"><b>✌️</b>Peace</div></div></div><div class="camera"><video id="video" autoplay playsinline muted></video><canvas id="canvas"></canvas></div><div id="gestureLabel" class="gestureLabel">NO HAND</div><p class="msg" id="detected">Camera is off.</p><div class="hint">Show your hand clearly. For Two-Hand Duel, keep both hands visible. Hand tracking may occasionally misread poses depending on lighting and camera angle.</div></div></div></section>
 <script type="module">
@@ -31,13 +30,15 @@ const poses={open:"🖐️ OPEN PALM",pinch:"🤏 PINCH",fist:"✊ FIST",peace:"
 function classify(l){
  if(!l||l.length<21)return "NO HAND";
  const wrist=l[0];
- const extended=(tip,pip)=>Math.hypot(l[tip].x-wrist.x,l[tip].y-wrist.y)>Math.hypot(l[pip].x-wrist.x,l[pip].y-wrist.y)*1.12;
+ // Compare fingertip-to-wrist distance with the corresponding PIP joint.
+ // A modest threshold is more tolerant of camera angle and hand size than 1.12.
+ const extended=(tip,pip)=>Math.hypot(l[tip].x-wrist.x,l[tip].y-wrist.y)>
+   Math.hypot(l[pip].x-wrist.x,l[pip].y-wrist.y)*1.045;
  const index=extended(8,6),middle=extended(12,10),ring=extended(16,14),pinky=extended(20,18);
- const thumbOut=Math.hypot(l[4].x-l[2].x,l[4].y-l[2].y)>.10;
- if(!thumbOut&&!index&&!middle&&!ring&&!pinky)return "FIST";
+ const thumbOut=Math.hypot(l[4].x-l[2].x,l[4].y-l[2].y)>.085;
  if(index&&middle&&!ring&&!pinky)return "PEACE";
- if(thumbOut&&!index&&!middle&&!ring&&!pinky)return "THUMBS UP";
  if(index&&middle&&ring&&pinky)return "OPEN PALM";
+ if(!index&&!middle&&!ring&&!pinky){if(thumbOut)return "THUMBS UP";return "FIST";}
  return "OTHER";
 }
 function draw(lms){
@@ -196,8 +197,8 @@ function loop(){
   // Sorters: require a stable fingertip dwell inside a camera-overlay target.
   if(["sort","healthy"].includes(mode)&&all.length&&now-lastAction>900){
    const tip=all[0][8],x=1-tip.x,y=tip.y;
-   const inLeft=Math.hypot((x-.18)*1.15,(y-.22))<.105;
-   const inRight=Math.hypot((x-.82)*1.15,(y-.76))<.105;
+   const inLeft=x>.64&&y<.39; // mirrored camera: upper-left logical target appears on screen right
+   const inRight=x<.36&&y>.61;
    const key=inLeft?"left":inRight?"right":"";
    if(key){if(sortHoldKey!==key){sortHoldKey=key;sortHoldStart=now;}
     if(now-sortHoldStart>=450){sortHoldKey="";sortHoldStart=0;
@@ -211,8 +212,8 @@ function loop(){
   }
   if(mode==="twosort"&&all.length>=2&&now-lastAction>900){
    const hands=all.map((lm,i)=>({tip:lm[8],i,x:1-lm[8].x,y:lm[8].y}));
-   const p1=hands.find(h=>h.x<.5&&Math.hypot((h.x-.18)*1.15,(h.y-.22))<.105);
-   const p2=hands.find(h=>h.x>.5&&Math.hypot((h.x-.82)*1.15,(h.y-.76))<.105);
+   const p1=hands.find(h=>h.x>.64&&h.y<.39);
+   const p2=hands.find(h=>h.x<.36&&h.y>.61);
    if(p1){if(p1HoldId!==p1.i){p1HoldId=p1.i;p1HoldStart=now;} }else{p1HoldId=-1;p1HoldStart=0;}
    if(p2){if(p2HoldId!==p2.i){p2HoldId=p2.i;p2HoldStart=now;} }else{p2HoldId=-1;p2HoldStart=0;}
    const p1Ready=!!p1&&now-p1HoldStart>=450,p2Ready=!!p2&&now-p2HoldStart>=450;
@@ -224,7 +225,7 @@ function loop(){
   }else if(mode==="twosort"&&all.length<2){p1HoldStart=0;p2HoldStart=0;p1HoldId=-1;p2HoldId=-1;}
   // Grab & Drop: coordinate math is always in pixels, including after the orb moves.
   if(mode==="grab"&&all[0]){
-   const h=all[0],thumb=h[4],index=h[8],d=Math.hypot(thumb.x-index.x,thumb.y-index.y),pinch=d<.075,mx=(thumb.x+index.x)/2,my=(thumb.y+index.y)/2;grabX=1-mx;grabY=my;
+   const h=all[0],thumb=h[4],index=h[8],d=Math.hypot(thumb.x-index.x,thumb.y-index.y),pinch=d<.095,mx=(thumb.x+index.x)/2,my=(thumb.y+index.y)/2;grabX=1-mx;grabY=my;
    const orb=$("grabOrb"),cursor=$("grabCursor"),arena=$("grabArena");
    if(arena&&orb&&cursor){
     const rect=arena.getBoundingClientRect(),x=(1-mx)*rect.width,y=my*rect.height;
@@ -236,7 +237,7 @@ function loop(){
     if(pinch&&!grabbed&&Math.hypot(x-orbX,y-orbY)<75){grabbed=true;$("grabStatus").textContent="Orb grabbed! Move it into a target and release.";}
     if(grabbed&&pinch){orb.style.left=x+"px";orb.style.top=y+"px";orb.style.transform="translate(-50%,-50%)";orb.style.boxShadow="0 0 36px #fff7a5";}
     if(grabbed&&!pinch){
-     const inLeft=x<rect.width*.30&&y<rect.height*.42,inRight=x>rect.width*.70&&y>rect.height*.58;
+     const inLeft=x>rect.width*.64&&y<rect.height*.43,inRight=x<rect.width*.36&&y>rect.height*.57;
      if(inLeft||inRight){award(10,inLeft?"Orb delivered to the crystal target! +10.":"Orb delivered to the moon target! +10.");$("grabStatus").textContent="Success! Pinch the orb again for another delivery.";}
      else{$("miniMsg").textContent="Release inside the upper-left crystal or lower-right moon target to score. Try again.";$("grabStatus").textContent="Missed the target — pinch the orb to try again.";}
      grabbed=false;orb.style.left="50%";orb.style.top="50%";orb.style.transform="translate(-50%,-50%)";orb.style.boxShadow="0 0 28px #55f6ff";

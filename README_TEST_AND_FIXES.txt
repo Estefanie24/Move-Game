@@ -1,6 +1,6 @@
-ARCANE ALCHEMIST — GAMEPLAY IMPROVEMENT PACKAGE
+ARCANE ALCHEMIST — GAMEPLAY FIX PACKAGE
 
-Included games
+Games included
 1. Arcane Alchemist (Potion Lab)
 2. Ball Sorter
 3. Two-Hand Duel
@@ -8,25 +8,20 @@ Included games
 5. Two-Player Sorter
 6. Grab & Drop
 
-Improvements in this revision
-- Mirrored camera overlay targets now align with the mirrored camera image and fingertip coordinates.
-- Ball Sorter / Healthy Sorter require the fingertip to dwell inside a specific visible target before awarding points.
-- Two-Player Sorter checks hand-side/target alignment, requires a short dwell, and tracks separate player scores.
-- Duel countdown restarts when either hand changes to a different valid sign, preventing a result from mixing different gestures.
-- Sorter orb animations accelerate as the round progresses.
-- Grab & Drop cursor is centered on the tracked pinch point; instructions identify the game arena as the interaction surface.
-- Round timeout and camera startup failures stop camera tracks cleanly.
-- Potion Lab camera failure/restart/end paths now release the camera stream; ritual hold time now increases with elapsed time and each completed potion, capped at a playable limit.
-- Added a persistent personal best score to Potion Lab and each mini-game using localStorage (stored only in the current browser).
-- Added reduced-motion support for players who prefer fewer animations.
-- Removed an unused gesture label nested inside the video element.
-- Improved button keyboard-focus visibility and target/orb feedback.
+Changes in this revision
+- Corrected mirrored-camera target coordinates for Ball Sorter and Healthy Sorter. The visible upper target is on the mirrored camera's right side, and the visible lower target is on its left side.
+- Corrected the same mirrored-coordinate mismatch for Two-Player Sorter target detection.
+- Corrected Grab & Drop delivery zones to match the positions of the visible mirrored camera targets. Pinch threshold is slightly more tolerant, and the cursor/orb continue to use arena-relative coordinates.
+- Made hand pose classification more tolerant by lowering the finger-extension ratio threshold and improving peace-sign detection. Two-Hand Duel uses the recognized PEACE pose as scissors.
+- Preserved the existing layout, artwork, Potion Lab, scoring, and game selection.
 
-Validation performed
-- JavaScript syntax check passed for index.html and potion-lab.html after the latest changes.
+Validation performed in this package
+- JavaScript syntax check passed for index.html and potion-lab.html.
 - ZIP integrity check passed.
-- Local HTML image references were checked against files in the package.
-- Interactive camera/gesture testing was not available in this environment. MediaPipe model loading, camera permissions, and real-device recognition must still be tested on the published HTTPS site.
+- Local image references were checked against files included in this package.
+
+Not yet verified
+I cannot simulate the phone camera or confirm real-world gesture recognition in this environment. Please test each game on the published HTTPS page in bright, even lighting. If a gesture is still missed, report which game and the text shown under the camera (Detected: ...).
 
 Deployment
-Upload the full contents of this ZIP to the same GitHub Pages folder. Do not upload only index.html; potion-lab.html and all artwork files are required. Open the HTTPS site, allow camera permission, and test each game in bright, even lighting.
+Extract the ZIP and upload the contents of the Move-Game-main folder to the root of the existing GitHub Pages repository, replacing the old files. Keep potion-lab.html and all image assets. Commit to the main branch, then refresh the site on your phone.
