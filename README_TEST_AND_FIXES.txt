@@ -25,3 +25,11 @@ I cannot simulate the phone camera or confirm real-world gesture recognition in 
 
 Deployment
 Extract the ZIP and upload the contents of the Move-Game-main folder to the root of the existing GitHub Pages repository, replacing the old files. Keep potion-lab.html and all image assets. Commit to the main branch, then refresh the site on your phone.
+
+REVISION 3 (gesture games fix)
+- Fixed unclosed <section id="home"> that nested the game screen inside the hidden home screen.
+- Ball/Healthy/Two-Player Sorter: detection zones now match the visible targets (upper-left, lower-right of the mirrored camera view); any detected hand can score.
+- Grab & Drop: drop zones corrected to match the arena targets; pinch is now relative to hand size with hysteresis, so it no longer drops mid-drag.
+- Two-Hand Duel: hands ordered left/right by screen position, rock with side thumb accepted, brief flicker no longer restarts the countdown.
+- Camera overlay text no longer mirrored; GPU->CPU fallback for hand tracking; Play Again now resets the round.
+- Images enhanced (2x resolution, denoised, sharpened).
