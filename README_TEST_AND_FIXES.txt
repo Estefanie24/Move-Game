@@ -38,3 +38,10 @@ REVISION 4
 - Ball Sorter / Healthy Sorter: the ball (or food) now FOLLOWS your index fingertip in both the arena and the camera view. Carry it to the matching target (red ball -> RED upper-left, blue ball -> BLUE lower-right; nourishing food -> NOURISH, treats -> TREAT). Wrong target = no points and the streak resets.
 - Grab & Drop: easier pinch, bigger grab radius, live status ("Open / Pinching - cursor is on the orb"), orb returns to centre if the hand is lost.
 - Two-Hand Duel: more robust finger detection, debounced countdown, live readout "Detected: left X . right Y".
+
+REVISION 5 (new file: fx.js - upload it too!)
+- Ball Sorter / Healthy Sorter: the ball/food now DROPS from the top. Steer it left/right with your index fingertip and land it in the matching circle (red/nourish = left, blue/treat = right). Wrong circle or floor = no points.
+- Grab & Drop: pinch the orb, carry it over a circle, OPEN your fingers (or press Space / tap the Drop button) and it falls into the circle.
+- Two-Hand Duel: scissors recognition improved; big winner banner (LEFT/RIGHT HAND WINS or DRAW), scoreboard (Left / Draws / Right) and points.
+- Sound + effects in every game (synthesised, no audio files): particles, confetti, screen shake, flashes, countdown ticks, win/lose jingles, light background music. Speaker button (bottom-right) mutes.
+- Arcane Alchemist (potion-lab.html) also has the new sounds and effects.

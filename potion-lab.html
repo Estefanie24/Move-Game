@@ -74,6 +74,7 @@ main{display:flex;flex-direction:column;padding:8px;gap:10px}
 </main>
 <footer>Camera processing runs in your browser using MediaPipe. Use HTTPS or localhost. Camera access requires your permission.</footer>
 <div id="overlay"><div class="modal"><div class="big">🧙‍♀️ ✨ ⚗️</div><h1>The Alchemist’s Trial</h1><p>Three magical brews. Four hand signs. No buttons needed once the ritual begins.<br><br><b>🖐️ Open palm</b> — draw the circle<br><b>🤏 Pinch</b> — add the essence<br><b>✊ Fist</b> — stir the brew<br><b>✌️ Peace sign</b> — seal the potion</p><button id="beginBtn">Enter the Alchemy Lab</button></div></div>
+<script src="fx.js"></script>
 <script type="module">
 import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 const $=id=>document.getElementById(id);
@@ -158,7 +159,7 @@ function renderRecipe(){
  $("progress").style.width=((step/4)*100)+"%";
 }
 function setMessage(text){$("message").textContent=text}
-function beep(freq=660,duration=.12){if(!soundOn)return;try{const ac=new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=freq;o.type="sine";g.gain.value=.07;o.connect(g);g.connect(ac.destination);o.start();g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+duration);o.stop(ac.currentTime+duration);o.onended=()=>ac.close()}catch(e){}}
+function beep(freq=660,duration=.12){if(!soundOn)return;try{FX.tone(freq,duration,'sine',.12)}catch(e){}}
 function updateGesture(g){
  const labels={none:["No hand detected","Show one hand clearly to the camera."],open:["OPEN PALM","Spread your fingers to draw a magic circle."],pinch:["PINCH","Bring your thumb and index finger together."],fist:["FIST","Close your hand to stir the potion."],peace:["PEACE SIGN","Raise your index and middle fingers to seal."],unknown:["Gesture not recognised","Try an open palm, pinch, fist, or peace sign."]};
  $("gestureName").textContent=labels[g][0];$("gestureHelp").textContent=labels[g][1];$("dot").classList.toggle("on",g!=="none");
@@ -170,13 +171,13 @@ function handleGesture(g){
  if(g==="none"||g==="unknown"){holdStart=performance.now();return}
  const r=recipes[currentRecipe], needed=r.steps[step][0], now=performance.now();
  if(g===needed){
-  const elapsed=now-holdStart;
+  const elapsed=now-holdStart;if(stableFrames===1)FX.sound('pop');
   setMessage(`Correct gesture! Hold steady… ${Math.min(100,Math.floor(elapsed/8))}% · Ritual intensity ${Math.min(5,1+potionsDone+Math.floor((60-seconds)/20))}/5`);
   const elapsedSeconds=60-seconds;
   // Difficulty rises both with elapsed time and each completed potion, with a safe upper limit.
   const ritualHoldMs=Math.min(1650,800+Math.floor(elapsedSeconds/15)*125+potionsDone*180);
-  if(elapsed>ritualHoldMs&&now-lastLockedAt>1200){lastLockedAt=now;step++;score+=25; $("score").textContent=score;beep(740,.16);renderRecipe();
-   if(step>=4){potionsDone++;score+=75;$("score").textContent=score;$("potions").textContent=`${potionsDone} / 3`;beep(950,.28);$("cauldron").textContent="✨⚗️✨";
+  if(elapsed>ritualHoldMs&&now-lastLockedAt>1200){lastLockedAt=now;step++;score+=25; $("score").textContent=score;beep(740,.16);FX.sound('success');{const pt=FX.at($('cauldron'),.5,.4);FX.burst(pt.x,pt.y,{count:32});FX.float('+25',pt.x,pt.y-40,'#fff4a8');FX.bump($('score').parentElement)}renderRecipe();
+   if(step>=4){potionsDone++;score+=75;$("score").textContent=score;$("potions").textContent=`${potionsDone} / 3`;beep(950,.28);FX.sound("combo");FX.confetti(60);FX.flash("#ffd36b");$("cauldron").textContent="✨⚗️✨";
     if(potionsDone>=3){finish(true);return}
     currentRecipe=potionsDone;step=0;setMessage(`${r.name} brewed! +75 bonus. Next: ${recipes[currentRecipe].name}.`);$("stageTitle").textContent="Potion complete!";renderRecipe();
    }else{setMessage(`Excellent! ${r.steps[step-1][1]} complete. Next: ${r.steps[step][1]}.`);$("cauldron").textContent=["⚗️","🫧","🌀","✨"][step];}
@@ -190,7 +191,7 @@ async function startGame(){
   $("startBtn").disabled=true;$("startBtn").textContent="Loading hand magic…";
   if(!landmarker){const vision=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");landmarker=await HandLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",delegate:"GPU"},runningMode:"VIDEO",numHands:1,minHandDetectionConfidence:.55,minHandPresenceConfidence:.5,minTrackingConfidence:.5});}
   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:640},height:{ideal:480}},audio:false});video.srcObject=stream;await video.play();
-  running=true;gameOver=false;$("cameraLabel").textContent="Camera live · hand tracking on";$("startBtn").textContent="Camera Active";$("stageTitle").textContent="The ritual begins";setMessage("Make an OPEN PALM and hold it steady to begin the potion. Each completed brew makes the next ritual more demanding.");$("overlay").classList.add("hidden");
+  running=true;gameOver=false;if(soundOn)FX.music(true);FX.sound('start');$("cameraLabel").textContent="Camera live · hand tracking on";$("startBtn").textContent="Camera Active";$("stageTitle").textContent="The ritual begins";setMessage("Make an OPEN PALM and hold it steady to begin the potion. Each completed brew makes the next ritual more demanding.");$("overlay").classList.add("hidden");
   if(!timer)timer=setInterval(()=>{if(!running||gameOver)return;seconds--;$("time").textContent=seconds;if(seconds<=0)finish(false)},1000);
   requestAnimationFrame(loop);
  }catch(e){console.error(e);running=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if(video.srcObject)video.srcObject=null;$("startBtn").disabled=false;$("startBtn").textContent="Try Camera Again";setMessage("Could not start camera or hand tracking. Open this page on HTTPS/localhost, allow camera permission, and check your internet connection.");$("cameraLabel").textContent="Camera unavailable";}
@@ -207,7 +208,7 @@ function loop(){
 function finish(won){
  gameOver=true;running=false;
  if(score>bestScore){bestScore=score;try{localStorage.setItem("arcane-alchemist-best-score",String(bestScore))}catch(e){}$("bestScore").textContent=bestScore;}
- if(timer){clearInterval(timer);timer=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if(video.srcObject)video.srcObject=null;$("cameraLabel").textContent="Quest ended";$("stageTitle").textContent=won?"Grand Alchemist!":"Time’s up!";$("cauldron").textContent=won?"🏆":"💫";setMessage(won?`You brewed all three potions with ${score} points!`:`You brewed ${potionsDone} of 3 potions. Score: ${score}. Try again to master the gestures.`);$("startBtn").disabled=false;$("startBtn").textContent="Play Again";beep(won?990:300,.3);$("overlay").classList.remove("hidden");$("overlay").querySelector("h1").textContent=won?"Grand Alchemist!":"The Trial Awaits";$("overlay").querySelector("p").innerHTML=won?`You brewed all three potions!<br><br><b>Final score: ${score}</b><br>Ready for another magical trial?`:`You brewed ${potionsDone} of 3 potions.<br><br><b>Score: ${score}</b><br>Keep your hand in view and hold each gesture steadily.`;$("beginBtn").textContent="Try Again";
+ if(timer){clearInterval(timer);timer=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if(video.srcObject)video.srcObject=null;$("cameraLabel").textContent="Quest ended";$("stageTitle").textContent=won?"Grand Alchemist!":"Time’s up!";$("cauldron").textContent=won?"🏆":"💫";setMessage(won?`You brewed all three potions with ${score} points!`:`You brewed ${potionsDone} of 3 potions. Score: ${score}. Try again to master the gestures.`);$("startBtn").disabled=false;$("startBtn").textContent="Play Again";FX.sound(won?'win':'lose');if(won)FX.confetti();FX.music(false);$("overlay").classList.remove("hidden");$("overlay").querySelector("h1").textContent=won?"Grand Alchemist!":"The Trial Awaits";$("overlay").querySelector("p").innerHTML=won?`You brewed all three potions!<br><br><b>Final score: ${score}</b><br>Ready for another magical trial?`:`You brewed ${potionsDone} of 3 potions.<br><br><b>Score: ${score}</b><br>Keep your hand in view and hold each gesture steadily.`;$("beginBtn").textContent="Try Again";
 }
 function restart(){
  running=false;gameOver=false;if(timer){clearInterval(timer);timer=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}if(video.srcObject)video.srcObject=null;seconds=60;score=0;step=0;currentRecipe=0;potionsDone=0;holdStart=0;lastLockedAt=0;stableGesture="";stableFrames=0;$("bestScore").textContent=bestScore;
@@ -215,7 +216,8 @@ function restart(){
 }
 $("beginBtn").addEventListener("click",()=>{if(gameOver)restart();else $("overlay").classList.add("hidden");if(!running)startGame()});
 $("startBtn").addEventListener("click",startGame);$("restartBtn").addEventListener("click",restart);
-$("soundBtn").addEventListener("click",()=>{soundOn=!soundOn;$("soundBtn").textContent=soundOn?"🔊 Sound: On":"🔇 Sound: Off";if(soundOn)beep()});
+$("soundBtn").addEventListener("click",()=>{soundOn=!soundOn;FX.setMuted(!soundOn);$("soundBtn").textContent=soundOn?"🔊 Sound: On":"🔇 Sound: Off";if(soundOn){beep();if(running&&!gameOver)FX.music(true)}else FX.music(false)});
+if(FX.isMuted()){soundOn=false;$("soundBtn").textContent="🔇 Sound: Off"}
 renderRecipe();
 </script>
 </body>
